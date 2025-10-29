@@ -1,76 +1,76 @@
-/* Ripple effect on click */
-document.getElementById('btnLogin').addEventListener('click', function(e) {
-  const btn = e.currentTarget;
-  const circle = document.createElement('span');
-  const diameter = Math.max(btn.clientWidth, btn.clientHeight);
-  const radius = diameter / 2;
-  circle.style.width = circle.style.height = diameter + 'px';
-  circle.style.left = (e.clientX - btn.offsetLeft - radius) + 'px';
-  circle.style.top = (e.clientY - btn.offsetTop - radius) + 'px';
-  circle.classList.add('ripple');
-  btn.appendChild(circle);
-  setTimeout(() => circle.remove(), 600);
-  loginAdmin();
-});
+export default async function handler(req, res) {
+  // CORS headers (opsional, tapi membantu)
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-/* Core login function */
-async function loginAdmin() {
-  const key = document.getElementById('adminkey').value.trim();
-  const loading = document.getElementById('loading');
-  const errorBox = document.getElementById('error');
-  
-  // Reset state
-  loading.style.display = 'block';
-  errorBox.textContent = '';
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
 
-  // Validasi input kosong
-  if (!key || key === '') {
-    loading.style.display = 'none';
-    errorBox.textContent = 'ADMIN_KEY tidak boleh kosong!';
-    return;
+  if (req.method !== "POST") {
+    return res.status(405).json({ 
+      success: false, 
+      message: "Method not allowed" 
+    });
   }
 
   try {
-    console.log('🔄 Mengirim request login...');
+    // Ambil key dari body
+    const { key } = req.body || {};
     
-    const res = await fetch('/api/adminLogin', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ key: key })
-    });
+    // Ambil ADMIN_KEY dari environment
+    const ADMIN_KEY = process.env.ADMIN_KEY;
 
-    console.log('📡 Response status:', res.status);
+    // 🔍 Debug log (HAPUS setelah berhasil!)
+    console.log("=== DEBUG LOGIN ADMIN ===");
+    console.log("Received key:", key);
+    console.log("Expected ADMIN_KEY:", ADMIN_KEY);
+    console.log("ADMIN_KEY exists:", !!ADMIN_KEY);
+    console.log("========================");
 
-    // Parse response
-    const data = await res.json();
-    console.log('📦 Response data:', data);
-
-    loading.style.display = 'none';
-
-    if (res.ok && data.success) {
-      // Simpan token ke localStorage
-      localStorage.setItem('admin_token', data.token || key);
-      
-      console.log('✅ Login berhasil! Redirect...');
-      
-      // Redirect ke dashboard
-      window.location.href = '/admin/dashboard/';
-    } else {
-      errorBox.textContent = data.message || 'Login gagal! Periksa ADMIN_KEY Anda.';
-      console.error('❌ Login gagal:', data.message);
+    // Validasi input
+    if (!key || typeof key !== 'string' || key.trim() === "") {
+      return res.status(400).json({ 
+        success: false, 
+        message: "ADMIN_KEY harus diisi." 
+      });
     }
-  } catch (err) {
-    loading.style.display = 'none';
-    errorBox.textContent = 'Terjadi kesalahan: ' + err.message;
-    console.error('❌ Error:', err);
+
+    // Validasi environment variable
+    if (!ADMIN_KEY || ADMIN_KEY === '') {
+      console.error("❌ ADMIN_KEY tidak ditemukan di environment variables!");
+      return res.status(500).json({ 
+        success: false, 
+        message: "Server configuration error. ADMIN_KEY tidak terkonfigurasi." 
+      });
+    }
+
+    // Bandingkan key (case-sensitive, tanpa trim berlebihan)
+    const inputKey = key.trim();
+    const envKey = ADMIN_KEY.trim();
+
+    if (inputKey === envKey) {
+      return res.status(200).json({ 
+        success: true, 
+        message: "Login berhasil!",
+        token: inputKey // kirim kembali untuk disimpan di localStorage
+      });
+    } else {
+      console.log("❌ Key tidak cocok!");
+      console.log("Input length:", inputKey.length);
+      console.log("Env length:", envKey.length);
+      
+      return res.status(401).json({ 
+        success: false, 
+        message: "ADMIN_KEY salah." 
+      });
+    }
+  } catch (error) {
+    console.error("Error in adminLogin:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error: " + error.message
+    });
   }
 }
-
-/* Enter key support */
-document.getElementById('adminkey').addEventListener('keyup', e => {
-  if (e.key === 'Enter') {
-    document.getElementById('btnLogin').click();
-  }
-});
